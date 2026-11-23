@@ -304,3 +304,65 @@ Design choices:
   statement (express then insurance), the insurance covers the goods plus shipping, which gives
   5.75€ and a total of 96.20€. To insure the goods only, wrap `BaseOrder` with `InsuranceDecorator` first
   (see `test_order_of_decorators_matters`).
+
+---
+
+## Behavioral — Strategy: report formats
+
+> On the course page, this first behavioral exercise is placed under a "Template Method Pattern" heading,
+> but its text asks to refactor the code **with the Strategy pattern** (strategy interface, one class per
+> format, context class). I followed the text.
+
+### Problems with the current implementation
+
+1. **Adding a format (XML, Markdown)** means editing `generate_report` **and** `save_report`: two
+   `if/elif` chains to keep in sync, and the risk of breaking the formats that already work.
+2. It violates the **Open/Closed principle** (it must be modified to be extended), and also
+   **Single Responsibility**: one class knows every format plus the file writing.
+3. **Testability is poor**: no format can be tested on its own, since they are all in the same method, and
+   `save_report` writes to the current folder without a choice of location.
+4. **Changing format at runtime** means passing a string everywhere. A typo (`"pfd"`) silently returns
+   `"Unknown format"`, and `save_report` with an unknown type silently writes nothing.
+5. **Duplication**: the format name is tested twice, and the file-writing code is copied 4 times
+   (only the extension changes).
+
+```mermaid
+classDiagram
+    class ReportGenerator {
+        +data: list~dict~
+        -_strategy: FormatStrategy
+        +set_strategy(strategy: FormatStrategy)
+        +generate_report() str
+        +save_report(filename) Path
+    }
+    class FormatStrategy {
+        <<abstract>>
+        +extension()* str
+        +format(data: list~dict~)* str
+    }
+    class PDFFormatStrategy
+    class ExcelFormatStrategy
+    class CSVFormatStrategy
+    class JSONFormatStrategy
+    class HTMLFormatStrategy {
+        <<new>>
+    }
+
+    ReportGenerator o-- FormatStrategy : uses
+    FormatStrategy <|-- PDFFormatStrategy
+    FormatStrategy <|-- ExcelFormatStrategy
+    FormatStrategy <|-- CSVFormatStrategy
+    FormatStrategy <|-- JSONFormatStrategy
+    FormatStrategy <|-- HTMLFormatStrategy
+```
+
+Design choices:
+- **Strategy interface** `FormatStrategy`: `format(data)` plus the `extension` property. Each format
+  knows its own extension, so `save_report` has no `if` at all.
+- **One class per format** and per file. The PDF and Excel outputs are kept identical to the original code
+  (they are text simulations, as in the statement). CSV uses the `csv` module (values with commas are
+  quoted), and HTML escapes its values.
+- **Context** `ReportGenerator`: it *has a* strategy (composition), changes it with `set_strategy()` at runtime,
+  and raises an error if none is set instead of returning an error string.
+- **Final test of the statement**: `HTMLFormatStrategy` was added as a new file, without modifying any existing
+  class. The tests also add a Markdown format inside the test file only.
