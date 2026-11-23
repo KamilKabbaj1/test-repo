@@ -236,3 +236,71 @@ Design choices:
   back into `int`/`float`.
 - The XML → JSON conversion is written **once**. The report functions depend only on
   `ReportGeneratorInterface` (Dependency Inversion): a native JSON generator could replace the adapter later.
+
+---
+
+## Structural — Decorator: order pricing
+
+**Problems identified** (from the statement): boolean flags multiply (5 flags, and more means more parameters),
+one method does everything (it violates Single Responsibility), a new option means modifying existing code,
+options cannot be reused, and the order of operations is unclear.
+
+```mermaid
+classDiagram
+    class OrderComponent {
+        <<abstract>>
+        +get_cost()* float
+        +get_description()* str
+    }
+    class BaseOrder {
+        +base_price: float
+        +get_cost() float
+        +get_description() str
+    }
+    class OrderDecorator {
+        <<abstract>>
+        #_order: OrderComponent
+        +get_cost() float
+        +get_description() str
+        #_extra_cost()* float
+        #_label()* str
+    }
+    class ExpressShippingDecorator {
+        +COST = 15.00
+    }
+    class InsuranceDecorator {
+        +RATE = 0.05
+    }
+    class GiftWrapDecorator {
+        +COST = 5.00
+    }
+    class DiscountDecorator {
+        +percent: float
+    }
+    class PremiumMemberDecorator {
+        +RATE = 0.10
+    }
+
+    OrderComponent <|-- BaseOrder
+    OrderComponent <|-- OrderDecorator
+    OrderDecorator o-- OrderComponent : wraps
+    OrderDecorator <|-- ExpressShippingDecorator
+    OrderDecorator <|-- InsuranceDecorator
+    OrderDecorator <|-- GiftWrapDecorator
+    OrderDecorator <|-- DiscountDecorator
+    OrderDecorator <|-- PremiumMemberDecorator
+```
+
+Design choices:
+- A decorator **is** an `OrderComponent` (inheritance) and **has** an `OrderComponent` (composition,
+  `_order`). So decorators wrap each other in any order and any number, and the caller always sees the same interface.
+- The wrapped object is stored in a **protected `_order`** (slide 87). `OrderDecorator` writes the
+  delegation once (`wrapped cost + extra`, `wrapped description + line`), and each concrete decorator only
+  says what it adds (`_extra_cost`, `_label`), with its rate as a named constant.
+- **One class per file** in [`decorators/`](structural/decorator/decorators/), like the
+  `orders/decorators/` example of slide 87. A new option is a new file, and nothing else changes (Open/Closed).
+- **The order of operations is now explicit**: each decorator applies to what it wraps. Note that the
+  old code computed the insurance on the *base price* only (5.00€). Here, with the order of the
+  statement (express then insurance), the insurance covers the goods plus shipping, which gives
+  5.75€ and a total of 96.20€. To insure the goods only, wrap `BaseOrder` with `InsuranceDecorator` first
+  (see `test_order_of_decorators_matters`).
