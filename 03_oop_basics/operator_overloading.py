@@ -11,6 +11,8 @@ tries the reflected operation on the other object (e.g. `b.__radd__(a)`), and
 if nobody knows how to handle it, Python itself raises a clean `TypeError`.
 """
 
+import math
+
 
 # --------------------------------------------------------------------------
 # Problem 1 - Complex numbers: + and -
@@ -74,3 +76,135 @@ class Person:
 
     def __repr__(self) -> str:
         return f"Person(name={self.name!r}, age={self.age}, gender={self.gender!r})"
+
+
+# --------------------------------------------------------------------------
+# Problem 4 - Vector: * is the dot product
+# (the statement has no problem 3: the numbering follows the original gist)
+# --------------------------------------------------------------------------
+class Vector:
+    """A vector in 3D space."""
+
+    def __init__(self, x: float, y: float, z: float) -> None:
+        self.x = x
+        self.y = y
+        self.z = z
+
+    def __mul__(self, other: "Vector") -> float:
+        # Dot product: u . v = ux*vx + uy*vy + uz*vz -> a number, not a Vector.
+        if not isinstance(other, Vector):
+            return NotImplemented
+        return self.x * other.x + self.y * other.y + self.z * other.z
+
+    def __repr__(self) -> str:
+        return f"Vector({self.x}, {self.y}, {self.z})"
+
+
+# --------------------------------------------------------------------------
+# Problem 5 - Circle: ALL six comparison operators, based on the radius
+# --------------------------------------------------------------------------
+class Circle:
+    """A circle, compared to other circles by radius."""
+
+    def __init__(self, radius: float) -> None:
+        # Goes through the property setter below, so the validation also
+        # applies at creation time.
+        self.radius = radius
+
+    # @property (slide 87, "leverage @property for state encapsulation"):
+    # `circle.radius` still looks like a plain attribute from the outside,
+    # but every assignment is checked. A negative radius can never exist.
+    @property
+    def radius(self) -> float:
+        return self._radius
+
+    @radius.setter
+    def radius(self, value: float) -> None:
+        if value < 0:
+            raise ValueError("radius must be non-negative")
+        self._radius = value
+
+    # The statement asks to overload every operator, so the six are written
+    # explicitly. In real code, `@functools.total_ordering` generates the four
+    # others from __eq__ and __lt__ alone (less code, same behaviour).
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Circle):
+            return NotImplemented
+        return self.radius == other.radius
+
+    def __ne__(self, other: object) -> bool:
+        # Python 3 derives != from == automatically; written here because the
+        # statement lists it explicitly.
+        if not isinstance(other, Circle):
+            return NotImplemented
+        return self.radius != other.radius
+
+    def __lt__(self, other: "Circle") -> bool:
+        if not isinstance(other, Circle):
+            return NotImplemented
+        return self.radius < other.radius
+
+    def __le__(self, other: "Circle") -> bool:
+        if not isinstance(other, Circle):
+            return NotImplemented
+        return self.radius <= other.radius
+
+    def __gt__(self, other: "Circle") -> bool:
+        if not isinstance(other, Circle):
+            return NotImplemented
+        return self.radius > other.radius
+
+    def __ge__(self, other: "Circle") -> bool:
+        if not isinstance(other, Circle):
+            return NotImplemented
+        return self.radius >= other.radius
+
+    def __repr__(self) -> str:
+        return f"Circle(radius={self.radius})"
+
+
+# --------------------------------------------------------------------------
+# Problem 6 - 2D point compared by Euclidean distance from the origin
+# --------------------------------------------------------------------------
+class Point2D:
+    """A 2D point, compared to other points by distance from the origin."""
+
+    def __init__(self, x: float, y: float) -> None:
+        self.x = x
+        self.y = y
+
+    @property
+    def distance(self) -> float:
+        # Computed property: always up to date if x or y change, no duplicated
+        # state to keep in sync. math.hypot(x, y) = sqrt(x**2 + y**2).
+        return math.hypot(self.x, self.y)
+
+    # Every comparison delegates to `distance`: the rule lives in one place.
+    # Note: (3, 4) == (4, 3) == (0, 5) here, because they are all at distance 5.
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Point2D):
+            return NotImplemented
+        return self.distance == other.distance
+
+    def __lt__(self, other: "Point2D") -> bool:
+        if not isinstance(other, Point2D):
+            return NotImplemented
+        return self.distance < other.distance
+
+    def __le__(self, other: "Point2D") -> bool:
+        if not isinstance(other, Point2D):
+            return NotImplemented
+        return self.distance <= other.distance
+
+    def __gt__(self, other: "Point2D") -> bool:
+        if not isinstance(other, Point2D):
+            return NotImplemented
+        return self.distance > other.distance
+
+    def __ge__(self, other: "Point2D") -> bool:
+        if not isinstance(other, Point2D):
+            return NotImplemented
+        return self.distance >= other.distance
+
+    def __repr__(self) -> str:
+        return f"Point2D({self.x}, {self.y})"

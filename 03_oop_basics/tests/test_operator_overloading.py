@@ -2,7 +2,7 @@
 
 import pytest
 
-from operator_overloading import Complex, Person
+from operator_overloading import Circle, Complex, Person, Point2D, Vector
 
 
 # ---------------------------------------------------------------- Complex
@@ -45,3 +45,64 @@ def test_person_same_age_is_not_greater():
 
 def test_person_less_than_uses_reflected_greater_than():
     assert Person("Bob", 20, "M") < Person("Alice", 40, "F")
+
+
+# ---------------------------------------------------------------- Vector
+def test_vector_dot_product():
+    assert Vector(1, 2, 3) * Vector(4, -5, 6) == 1 * 4 + 2 * -5 + 3 * 6
+
+
+def test_orthogonal_vectors_have_zero_dot_product():
+    assert Vector(1, 0, 0) * Vector(0, 1, 0) == 0
+
+
+def test_vector_times_number_is_not_supported():
+    with pytest.raises(TypeError):
+        Vector(1, 2, 3) * 2
+
+
+# ---------------------------------------------------------------- Circle
+@pytest.mark.parametrize(
+    ("r1", "r2", "expected"),
+    [
+        # (r1, r2, (==, !=, <, <=, >, >=))
+        (1, 2, (False, True, True, True, False, False)),
+        (2, 2, (True, False, False, True, False, True)),
+        (3, 2, (False, True, False, False, True, True)),
+    ],
+)
+def test_circle_comparisons(r1, r2, expected):
+    a, b = Circle(r1), Circle(r2)
+    assert (a == b, a != b, a < b, a <= b, a > b, a >= b) == expected
+
+
+def test_circle_negative_radius_is_rejected():
+    with pytest.raises(ValueError):
+        Circle(-1)
+    circle = Circle(1)
+    with pytest.raises(ValueError):
+        circle.radius = -5
+
+
+def test_circles_can_be_sorted():
+    # sorted() only needs __lt__.
+    circles = [Circle(3), Circle(1), Circle(2)]
+    assert [c.radius for c in sorted(circles)] == [1, 2, 3]
+
+
+# ---------------------------------------------------------------- Point2D
+def test_point_distance():
+    assert Point2D(3, 4).distance == 5
+
+
+@pytest.mark.parametrize(
+    ("p1", "p2", "expected"),
+    [
+        # (p1, p2, (==, <, <=, >, >=))
+        (Point2D(1, 1), Point2D(3, 4), (False, True, True, False, False)),
+        (Point2D(3, 4), Point2D(0, 5), (True, False, True, False, True)),
+        (Point2D(0, -6), Point2D(3, 4), (False, False, False, True, True)),
+    ],
+)
+def test_point_comparisons(p1, p2, expected):
+    assert (p1 == p2, p1 < p2, p1 <= p2, p1 > p2, p1 >= p2) == expected
