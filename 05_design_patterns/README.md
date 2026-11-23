@@ -188,3 +188,51 @@ Design choices:
 - The services **return** their message instead of printing it, so they are testable. The demo prints them.
 - Alternative mentioned on slide 87: a **module-level instance** (`config = ConfigManager(...)`
   in a module) is also a singleton in Python, because a module is imported only once.
+
+---
+
+## Structural — Adapter: legacy XML reports for a JSON dashboard
+
+**Problems identified** (from the statement): incompatible interfaces (the legacy generator returns XML, the
+dashboard expects JSON), conversion logic repeated in every report function, a legacy system
+we cannot modify (external library), and business logic mixed with format conversion.
+
+```mermaid
+classDiagram
+    class ReportGeneratorInterface {
+        <<abstract>>
+        +generate(data: dict)* str
+    }
+    class LegacyReportAdapter {
+        -_legacy: LegacyReportGenerator
+        +generate(data: dict) str
+        -_parse_value(text: str)$ object
+    }
+    class LegacyReportGenerator {
+        <<external>>
+        +generate_report(data: dict) str
+    }
+    class AnalyticsDashboard {
+        +display(json_data: str)
+    }
+    class reports {
+        <<module>>
+        +show_sales_report(generator, dashboard)
+        +show_inventory_report(generator, dashboard)
+    }
+
+    ReportGeneratorInterface <|.. LegacyReportAdapter
+    LegacyReportAdapter o-- LegacyReportGenerator : wraps
+    reports ..> ReportGeneratorInterface
+    reports ..> AnalyticsDashboard
+```
+
+Design choices:
+- **Object adapter (composition)**: `LegacyReportAdapter` *implements* the interface expected by the new
+  code, and *wraps* a `LegacyReportGenerator` that it receives in its constructor. The legacy class is not
+  modified and not inherited, so its XML API never leaks out of the adapter.
+- The adapter **really converts the XML output** (`xml.etree.ElementTree`), unlike the old code that
+  "cheated" by dumping the original data again. XML only stores text, so `_parse_value` turns numbers
+  back into `int`/`float`.
+- The XML → JSON conversion is written **once**. The report functions depend only on
+  `ReportGeneratorInterface` (Dependency Inversion): a native JSON generator could replace the adapter later.
