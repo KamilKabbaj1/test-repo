@@ -394,3 +394,420 @@ create the right strategy from the patient's choice in the user interface.
 - In a real system: a database **transaction** (the payment is saved and the prescription is marked
   as paid together, or neither), an idempotency key so that a retried request does not charge
   twice, an audit log with timestamps, and never storing a full card number (only the last 4 digits).
+
+---
+
+# Exo 2 — ABCD Records 📼
+
+Mermaid has no native use case diagram. I draw it with a `flowchart`, following the UML conventions:
+- **actors** are rectangles with a 🧍, placed outside the system;
+- **use cases** are rounded "stadium" shapes `([...])`;
+- the **system boundary** is a `subgraph`;
+- `«include»` and `«extend»` are dashed arrows. The `«include»` arrow goes from the base use case
+  to the included one (it ALWAYS happens). The `«extend»` arrow goes from the optional use case to the
+  use case it extends (it MAY happen, under a condition), as on slide 51.
+
+## Level 1
+
+### Task 1.1 — Use case diagram
+
+```mermaid
+flowchart LR
+    M["🧍 Member"]
+    C["🧍 Order Processing Clerk"]
+
+    subgraph ABCD["ABCD Records system"]
+        UC1([Place Order])
+        UC2([Verify Membership])
+        UC3([Process Order])
+        UC4([Make Payment])
+    end
+
+    M --- UC1
+    M --- UC4
+    C --- UC2
+    C --- UC3
+```
+
+### Task 1.2 — Basic class diagram
+
+```mermaid
+classDiagram
+    class Member {
+        -memberId: str
+        -name: str
+        -address: str
+        -memberType: str
+        +placeOrder(items) Order
+        +pay(order: Order, method: str)
+    }
+    class Order {
+        -orderId: str
+        -date: date
+        -items: list
+        -total: float
+        +addItem(item, quantity: int)
+        +computeTotal() float
+    }
+    class OrderProcessingClerk {
+        -clerkId: str
+        -name: str
+        +verifyMembership(member: Member) bool
+        +processOrder(order: Order)
+        +saveToDailyRecords(order: Order)
+    }
+
+    Member "1" --> "0..*" Order : places
+    OrderProcessingClerk "1" --> "0..*" Order : processes
+    OrderProcessingClerk ..> Member : verifies
+```
+
+At this level, the member type ("Royal" or "Regular") is a simple attribute. Level 2 replaces it
+with inheritance, because the two types have different *behaviours* (discount, unavailable items).
+
+## Level 2
+
+### Task 2.1 — Complete use case diagram
+
+```mermaid
+flowchart LR
+    M["🧍 Member"]
+    NM["🧍 Non-Member"]
+    OPC["🧍 Order Processing Clerk"]
+    CDC["🧍 Collection Department Clerk"]
+
+    subgraph ABCD["ABCD Records system"]
+        PO([Place Order])
+        VM([Verify Membership])
+        SMA([Send Membership Application])
+        PRO([Process Order])
+        VIA([Verify Item Availability])
+        OUI([Order Unavailable Items])
+        AD([Apply Discount])
+        PI([Print Invoice])
+        PSL([Print Shipping List])
+        MP([Make Payment])
+    end
+
+    M --- PO
+    NM --- PO
+    M --- MP
+    OPC --- VM
+    OPC --- PRO
+    CDC --- MP
+
+    PO -.->|«include»| VM
+    SMA -.->|"«extend» [not a member]"| VM
+    PRO -.->|«include»| VIA
+    PRO -.->|«include»| PI
+    PRO -.->|«include»| PSL
+    AD -.->|"«extend» [Royal member]"| PRO
+    OUI -.->|"«extend» [Royal member, item unavailable]"| VIA
+```
+
+How I read it:
+- every order **includes** a membership check (rule 1: only members can order);
+- if the check fails, the system **extends** it by sending a membership application (rule 2).
+  That is why the non-member can start "Place Order" but never gets an order;
+- processing an order always includes checking stock and printing the invoice and the shipping list;
+- the discount and ordering unavailable items are **extensions** reserved to Royal members (rules 3-4);
+- the payment is received by the Collection Department Clerk (rules 5 and 7).
+
+### Task 2.2 — Complete class diagram
+
+```mermaid
+classDiagram
+    class Customer {
+        -name: str
+        -address: str
+    }
+    class Member {
+        <<abstract>>
+        -memberId: str
+        +discountRate()* float
+        +canOrderUnavailable()* bool
+        +hasPriority()* bool
+    }
+    class RegularMember {
+        +discountRate() float
+        +canOrderUnavailable() bool
+        +hasPriority() bool
+    }
+    class RoyalMember {
+        +discountRate() float
+        +canOrderUnavailable() bool
+        +hasPriority() bool
+    }
+    class MembershipApplication {
+        -applicant: Customer
+        -issuedAt: datetime
+    }
+    class Item {
+        <<abstract>>
+        -code: str
+        -title: str
+        -price: float
+        -stock: int
+        +isAvailable(quantity: int) bool
+        +removeFromStock(quantity: int)
+        +restock(quantity: int)
+        +kind()* str
+    }
+    class CD {
+        -artist: str
+        +kind() str
+    }
+    class Tape {
+        -durationMinutes: int
+        +kind() str
+    }
+    class OrderStatus {
+        <<enumeration>>
+        RECEIVED
+        PROCESSED
+        PAID
+    }
+    class Order {
+        -orderId: str
+        -date: date
+        -status: OrderStatus
+        +addLine(item: Item, quantity: int)
+        +subtotal() float
+        +discount() float
+        +total() float
+    }
+    class OrderLine {
+        -quantity: int
+        -backordered: bool
+        +subtotal() float
+    }
+    class Invoice {
+        -order: Order
+        +lines() list
+        +total() float
+        +print() str
+    }
+    class ShippingList {
+        -order: Order
+        +linesToShip() list~OrderLine~
+        +print() str
+    }
+    class Payment {
+        -amount: float
+        -paidAt: datetime
+        -receipt: str
+    }
+    class PaymentMethod {
+        <<abstract>>
+        +pay(amount: float)* str
+    }
+    class Cash {
+        +pay(amount: float) str
+    }
+    class Check {
+        -checkNumber: str
+        +pay(amount: float) str
+    }
+    class BankDraft {
+        -draftNumber: str
+        +pay(amount: float) str
+    }
+    class OrderProcessingClerk {
+        -name: str
+        +verifyMembership(customer: Customer) bool
+        +receiveOrder(customer: Customer, requests: dict) Order
+        +processOrder(order: Order) Invoice
+    }
+    class CollectionDepartmentClerk {
+        -name: str
+        +collectPayment(order: Order, method: PaymentMethod) Payment
+    }
+    class DailyRecords {
+        -path: str
+        +save(order: Order)
+    }
+
+    Customer <|-- Member
+    Member <|-- RegularMember
+    Member <|-- RoyalMember
+    Item <|-- CD
+    Item <|-- Tape
+    PaymentMethod <|-- Cash
+    PaymentMethod <|-- Check
+    PaymentMethod <|-- BankDraft
+
+    Member "1" --> "0..*" Order : places
+    Order "1" *-- "1..*" OrderLine : contains
+    OrderLine "0..*" --> "1" Item : refers to
+    Order --> OrderStatus
+    Order "1" -- "0..1" Invoice
+    Order "1" -- "0..1" ShippingList
+    Order "1" -- "0..1" Payment : paid by
+    Payment "1" *-- "1" PaymentMethod : uses
+    MembershipApplication "0..*" --> "1" Customer : sent to
+    OrderProcessingClerk ..> MembershipApplication : creates
+    OrderProcessingClerk "1" --> "0..*" Order : processes
+    OrderProcessingClerk "1" --> "1" DailyRecords : saves orders in
+    CollectionDepartmentClerk "1" --> "0..*" Payment : collects
+```
+
+Design choices:
+- **`Customer <|-- Member`**: a non-member is simply a `Customer` who is not a `Member`. No
+  separate "NonMember" class is needed, and the membership check becomes "is this customer a
+  registered member?".
+- **Member types by inheritance with abstract methods**: the clerk asks `member.discountRate()`
+  or `member.canOrderUnavailable()` and never tests `if type == "Royal"`. A new member type
+  (e.g. "Gold") is just a new subclass (Open/Closed principle).
+- **`OrderLine`** carries the quantity and the "backordered" flag: an `Order — Item` link alone
+  could not store how many copies are ordered, or that one line is waiting for stock.
+- `Order *-- OrderLine` is a composition (a line dies with its order), but `OrderLine --> Item`
+  is a simple association: an item exists in the catalogue without any order.
+- **`Payment *-- PaymentMethod`**: the same Strategy design as in the hospital exercise.
+- `receiveOrder` returns an `Order` for a member. For a non-member, it returns a
+  `MembershipApplication` instead (see the membership verification sequence in level 3).
+  `processOrder` returns the `Invoice`, and the `ShippingList` is attached to the order.
+
+### Scenario — a Royal member orders 2 CDs (one unavailable) and pays by check
+
+```mermaid
+sequenceDiagram
+    actor R as Royal Member
+    participant OPC as Order Processing Clerk
+    participant O as Order
+    participant CD1 as CD "Kind of Blue" (stock 3)
+    participant CD2 as CD "Abbey Road" (stock 0)
+    participant CDC as Collection Dept Clerk
+    participant DR as DailyRecords
+
+    R->>OPC: receiveOrder(royal, {CD1: 1, CD2: 1})
+    OPC->>OPC: verifyMembership(royal) → true
+    OPC->>O: create Order [RECEIVED]
+    OPC->>O: addLine(CD1, 1)
+    O->>CD1: isAvailable(1)
+    CD1-->>O: true
+    OPC->>O: addLine(CD2, 1)
+    O->>CD2: isAvailable(1)
+    CD2-->>O: false
+    Note over O: Royal member → canOrderUnavailable()<br/>line added with backordered = true
+    OPC-->>R: Order
+    OPC->>O: processOrder()
+    O->>CD1: removeFromStock(1)
+    Note over OPC: 10 % Royal discount applied,<br/>Invoice + ShippingList (CD1 only) printed
+    OPC->>DR: save(order) [PROCESSED]
+    R->>CDC: pay by Check(n° 0042)
+    CDC->>CDC: collectPayment(order, Check)
+    CDC-->>R: receipt [PAID]
+```
+
+## Level 3 — Advanced sequence diagrams
+
+### 1. Complete order processing flow
+
+```mermaid
+sequenceDiagram
+    actor M as Member
+    participant OPC as Order Processing Clerk
+    participant O as Order
+    participant I as Item
+    participant DR as DailyRecords
+    participant CDC as Collection Dept Clerk
+
+    M->>OPC: receiveOrder(member, requests)
+    activate OPC
+    OPC->>OPC: verifyMembership(member)
+    OPC->>O: create Order [RECEIVED]
+    loop for each requested item
+        OPC->>O: addLine(item, quantity)
+        O->>I: isAvailable(quantity)
+        I-->>O: available?
+    end
+    OPC->>O: processOrder()
+    loop for each line not backordered
+        O->>I: removeFromStock(quantity)
+    end
+    OPC->>OPC: create Invoice (with discount) and ShippingList
+    OPC->>DR: save(order)
+    OPC-->>M: Invoice [PROCESSED]
+    deactivate OPC
+    M->>CDC: pay(invoice total, method)
+    CDC-->>M: receipt [PAID]
+```
+
+### 2. Membership verification (success and failure)
+
+```mermaid
+sequenceDiagram
+    actor C as Customer
+    participant OPC as Order Processing Clerk
+    participant REG as Member registry
+
+    C->>OPC: receiveOrder(customer, requests)
+    OPC->>REG: verifyMembership(customer)
+    alt customer is a registered member
+        REG-->>OPC: true
+        OPC-->>C: Order created [RECEIVED]
+    else not a member
+        REG-->>OPC: false
+        OPC->>OPC: create MembershipApplication(customer)
+        OPC-->>C: membership application form
+    end
+```
+
+### 3. Payment processing (all types)
+
+```mermaid
+sequenceDiagram
+    actor M as Member
+    participant CDC as Collection Dept Clerk
+    participant P as Payment
+    participant PM as PaymentMethod
+
+    M->>CDC: collectPayment(order, method)
+    activate CDC
+    alt order not processed or already paid
+        CDC-->>M: error
+    else order processed
+        alt Cash
+            CDC->>PM: Cash.pay(total)
+        else Check
+            CDC->>PM: Check(checkNumber).pay(total)
+        else Bank draft
+            CDC->>PM: BankDraft(draftNumber).pay(total)
+        end
+        PM-->>CDC: receipt
+        CDC->>P: create Payment(amount, method, receipt)
+        CDC-->>M: receipt [PAID]
+    end
+    deactivate CDC
+```
+
+The three `alt` branches only show the three possible *objects*. In the code, the clerk makes
+one single call `method.pay(total)`, and polymorphism selects the behaviour.
+
+### 4. Item reordering for Royal members
+
+```mermaid
+sequenceDiagram
+    actor R as Royal Member
+    participant OPC as Order Processing Clerk
+    participant O as Order
+    participant I as Item
+    participant S as Supplier
+
+    R->>OPC: receiveOrder(royal, {item: 2})
+    OPC->>O: addLine(item, 2)
+    O->>I: isAvailable(2)
+    I-->>O: false
+    alt member.canOrderUnavailable() (Royal)
+        O->>O: line.backordered = true
+        OPC->>OPC: add line to backorders (priority)
+        OPC->>S: reorder(item, 2)
+        S-->>I: restock(quantity)
+        OPC->>OPC: shipBackorders()
+        OPC->>I: removeFromStock(2)
+        OPC-->>R: ShippingList (backordered items)
+    else Regular member
+        O-->>OPC: UnavailableItemError
+        OPC-->>R: item unavailable
+    end
+```
