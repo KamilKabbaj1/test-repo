@@ -366,3 +366,85 @@ Design choices:
   and raises an error if none is set instead of returning an error string.
 - **Final test of the statement**: `HTMLFormatStrategy` was added as a new file, without modifying any existing
   class. The tests also add a Markdown format inside the test file only.
+
+---
+
+## Behavioral — Template Method: data ETL pipelines
+
+### Problems with the current implementation
+
+1. **Validation** is written 3 times (once per class). Only the list of required fields changes.
+2. **Cleanup** is written 3 times, identically. It is also skipped if a step raises an error.
+3. **Adding logging** to all pipelines means editing the 3 classes (and every future one) and
+   hoping none is forgotten.
+4. **If the workflow order changes** (e.g. validate before transform), the 3 `run()` methods must be
+   changed in the same way. Nothing guarantees they stay identical.
+5. **Duplication**: about 80 % of each class is the same: connect, the loops, validate, load,
+   cleanup and the messages. Only the extraction and the transformation of one record really differ.
+
+```mermaid
+classDiagram
+    class DataPipeline {
+        <<abstract>>
+        +source: str
+        +data: list~dict~
+        +logs: list~str~
+        +destination: list~dict~
+        +run() str
+        +name()* str
+        +required_fields()* tuple
+        +extract()* list~dict~
+        +transform_record(record: dict)* dict
+        +transform(records) list~dict~
+        +validate(records)
+        +load(records)
+        +cleanup()
+        +log(message: str)
+        +connect()
+        +on_error(error: Exception)
+    }
+    class CSVPipeline {
+        +name = "CSV"
+        +extract() list~dict~
+        +transform_record(record) dict
+    }
+    class APIPipeline {
+        +name = "API"
+        +extract() list~dict~
+        +transform_record(record) dict
+    }
+    class DatabasePipeline {
+        +name = "Database"
+        +extract() list~dict~
+        +transform_record(record) dict
+    }
+    class XMLPipeline {
+        <<new>>
+        +name = "XML"
+        +extract() list~dict~
+        +transform_record(record) dict
+    }
+
+    DataPipeline <|-- CSVPipeline
+    DataPipeline <|-- APIPipeline
+    DataPipeline <|-- DatabasePipeline
+    DataPipeline <|-- XMLPipeline
+```
+
+Reading the diagram: `run()` is the **template method**, which subclasses must not override (marked
+`@typing.final`). The methods with `*` are **abstract steps** (mandatory). `transform`, `validate`, `load`,
+`cleanup` and `log` are **common steps**, written once. `connect()` and `on_error()` are **hooks**: they have a
+default behaviour, and a subclass may override them.
+
+Design choices:
+- `run()` calls the steps **in a fixed order**, and `cleanup()` is in a `finally`, so it always runs, even after a
+  validation error ("impossible to skip required steps"). An error goes to the `on_error` hook and is then re-raised,
+  never hidden.
+- The subclasses only define what is **unique to them**: `name`, `required_fields`, `extract()` and
+  `transform_record()` (the body of the loop; the loop itself is in the base class).
+- `log()` is the single logging point (problem 3): it prints and keeps the messages in `logs`, which the
+  tests use to check the order of the steps.
+- The simulated `time.sleep(0.5)` calls were removed: they only made the demo and the tests slower. The sample
+  records keep raw values as strings (`"30"`, `"85"`) so the conversion step is visible.
+- **Validation test of the statement**: `XMLPipeline` parses XML (`xml.etree.ElementTree`) and was added
+  without modifying `DataPipeline` or the other pipelines.
