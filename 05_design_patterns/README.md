@@ -141,3 +141,50 @@ Design choices:
 - **Presets** `DeveloperBuilder` and `InternBuilder` are pre-filled builders, with the values of the two
   examples of the statement. The business rules live there (senior → admin rights, intern →
   internship contract without VPN). The result is still a builder, so it can be adjusted before `build()`.
+
+---
+
+## Creational — Singleton: configuration manager
+
+**Problems identified** (from the statement): the file is read on every call (wasteful I/O), each module
+loads its own copy (no shared state), so a change made by one module is not seen by the others,
+and there is no single point to override in tests.
+
+```mermaid
+classDiagram
+    class ConfigManager {
+        <<singleton>>
+        +DEFAULT_PATH: Path$
+        -_instance: ConfigManager$
+        -_data: dict
+        +get_instance(path)$ ConfigManager
+        +reset()$
+        +get(key: str, default) Any
+        +set(key: str, value)
+    }
+    class services {
+        <<module>>
+        +start_application() str
+        +connect_database() str
+        +send_email(to, subject) str
+        +process_payment(amount) str
+    }
+    services ..> ConfigManager : get_instance()
+    ConfigManager --> ConfigManager : _instance
+```
+
+(`$` = static/class member in Mermaid.)
+
+Design choices:
+- The single instance is stored in a **class attribute** `_instance`, and `get_instance()` is a
+  **`@classmethod`** (slide 87) that creates it on the first call only. The file is read once.
+- `__init__` **refuses a second instance** (`RuntimeError`): without this guard, `ConfigManager()`
+  could silently create a second copy of the config, which is the problem the pattern solves.
+- `get("database.host")` walks the nested dictionaries. A missing key returns a default value
+  instead of crashing on a `KeyError`.
+- `set()` changes the shared state, so every module sees the change (problem 3).
+- `reset()` is the single point for tests (problem 4). The tests reset the singleton around each
+  test and load a temporary config file.
+- The services **return** their message instead of printing it, so they are testable. The demo prints them.
+- Alternative mentioned on slide 87: a **module-level instance** (`config = ConfigManager(...)`
+  in a module) is also a singleton in Python, because a module is imported only once.
