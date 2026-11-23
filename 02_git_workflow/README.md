@@ -108,3 +108,109 @@ git branch -d feature-script  # 6. delete the branch (safe: refused if it is not
    forward to the last commit of `feature-script`. No merge commit was created and the history
    stays linear.
 6. `git branch -d feature-script` (`-D` would force the deletion of an unmerged branch).
+
+## Part 9: Push to GitHub
+
+1-2. On github.com: **New repository** → name `my-first-repo` → do **not** tick "Add a README"
+     (otherwise the remote has a commit that my local repo does not have, and the first push is rejected).
+
+```bash
+git remote add origin https://github.com/KamilKabbaj1/my-first-repo.git   # 3. link local → GitHub
+git remote -v                                                             #    check the link
+git push -u origin main                                                   # 4. send the commits
+```
+
+`origin` is just the conventional name of the remote. `-u` (upstream) remembers that local `main`
+tracks `origin/main`, so the next times a plain `git push` / `git pull` is enough.
+
+5. After refreshing the GitHub page, I see the files (`readme.txt`, `install.sh`), the number of commits,
+   and the history with the same messages and hashes as `git log` locally.
+
+## Part 10: Delete and clone
+
+```bash
+cd ..                                                         # 1. leave the project folder
+rm -rf my-first-repo                                          # 2. delete the local folder (and its .git/)
+git clone https://github.com/KamilKabbaj1/my-first-repo.git   # 3. download it again from GitHub
+cd my-first-repo && ls && git log --oneline                   # 4. files and full history are back
+```
+
+`git clone` gives back the whole history, not only the files, and the remote `origin` is already configured.
+
+## Part 11: Full workflow practice
+
+Repository: **<https://github.com/KamilKabbaj1/bash-installer>**
+
+```bash
+# 1-2. clean up the previous exercise
+cd ~ && rm -rf my-first-repo          # local folder
+# on github.com: my-first-repo → Settings → Danger Zone → Delete this repository
+
+# 3-4. new project
+mkdir bash-installer && cd bash-installer
+git init -b main                      # -b main: name the first branch "main"
+
+# 5-6. README on main
+nano README.md
+git add README.md
+git commit -m "Add README describing the project"
+
+# 7-9. the script lives on a feature branch
+git switch -c feature-install
+cp ~/test-repo/02_git_workflow/install.sh .
+chmod +x install.sh
+git add install.sh
+git commit -m "Add install script"
+
+# 10-12. merge and clean up
+git switch main
+git merge feature-install             # fast-forward, like in part 8
+git branch -d feature-install
+
+# 13-14. on github.com: create "bash-installer" WITHOUT README, then:
+git remote add origin https://github.com/KamilKabbaj1/bash-installer.git
+git push -u origin main
+```
+
+Result (`git log --oneline --graph --all`): two commits on `main`, "Add README describing the project"
+then "Add install script", and no other branch left.
+
+---
+
+## Reflection questions
+
+1. **Why is version control useful?**
+   It keeps the full history of a project: I can see who changed what, when and why, go back to
+   any previous version if something breaks, work on several things in parallel with branches,
+   and collaborate without overwriting each other's work. With a remote (GitHub) it is also a backup.
+
+2. **What is the difference between staging and committing?**
+   Staging (`git add`) chooses *which changes* go into the next snapshot. It is a preparation area
+   where I can compose the commit file by file. Committing (`git commit`) actually *records* that
+   snapshot in the history, permanently, with a message, an author and a date.
+   So I can modify 5 files but commit only the 2 that belong to the same logical change.
+
+3. **When should you make a commit?**
+   Each time a small, coherent and working unit of work is finished: one feature, one bug fix,
+   one refactoring. "Commit small, commit often": if something breaks, a small commit tells me
+   exactly which change caused it, and it is easy to revert.
+
+4. **What is the difference between `git init` and `git clone`?**
+   `git init` creates a *new, empty* repository in the current folder (no history, no remote).
+   `git clone <url>` copies an *existing* remote repository: files, full history, branches,
+   and it configures the remote `origin` automatically.
+
+5. **Why should you write good commit messages?**
+   The history is documentation: `git log --oneline` must tell what happened without opening
+   each commit. A clear message ("Fix null pointer in login handler") helps teammates, reviewers
+   and my future self find when and why a change was made. "updates" or "fixed some bugs" say nothing.
+
+6. **What is the purpose of using branches?**
+   A branch is an independent line of development: I can build a feature or try an idea without
+   breaking the stable code on `main`, several people can work on different features at the same
+   time, and the work is merged only when it is ready (and can be thrown away if it is not).
+
+7. **When would you create a new branch instead of working on main?**
+   As soon as the work is more than a trivial change: a new feature (`feature-login`), a bug fix
+   (`fix-...`), an experiment, or any work that will take several commits or must be reviewed.
+   `main` should always contain production-ready code, so unfinished work never goes there directly.
