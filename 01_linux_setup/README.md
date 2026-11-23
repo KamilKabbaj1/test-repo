@@ -130,6 +130,8 @@ readable in 10 lines, and each function does a single job.
 
 ### Step 3.3 — `env_install.sh`
 
+The script is in [`env_install.sh`](env_install.sh) (executable). Its full code is copied below.
+
 | Feature | Where |
 |---|---|
 | 1. Pretty printing with `printf` and blank lines | `pretty_print` (with colours: bonus) |
