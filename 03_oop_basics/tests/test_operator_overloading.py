@@ -2,7 +2,7 @@
 
 import pytest
 
-from operator_overloading import Circle, Complex, Person, Point2D, Vector
+from operator_overloading import Circle, Complex, Matrix, Person, Point2D, Vector
 
 
 # ---------------------------------------------------------------- Complex
@@ -106,3 +106,42 @@ def test_point_distance():
 )
 def test_point_comparisons(p1, p2, expected):
     assert (p1 == p2, p1 < p2, p1 <= p2, p1 > p2, p1 >= p2) == expected
+
+
+# ---------------------------------------------------------------- Matrix
+def test_matrix_product():
+    a = Matrix([[1, 2], [3, 4]])
+    b = Matrix([[5, 6], [7, 8]])
+    assert a * b == Matrix([[19, 22], [43, 50]])
+
+
+def test_matrix_product_non_square():
+    a = Matrix([[1, 2, 3]])        # 1x3
+    b = Matrix([[1], [2], [3]])    # 3x1
+    assert (a * b).shape == (1, 1)
+    assert a * b == Matrix([[14]])
+    assert (b * a).shape == (3, 3)
+
+
+def test_matrix_at_operator_is_an_alias():
+    a = Matrix([[1, 2], [3, 4]])
+    identity = Matrix([[1, 0], [0, 1]])
+    assert a @ identity == a * identity == a
+
+
+def test_matrix_incompatible_dimensions():
+    with pytest.raises(ValueError):
+        Matrix([[1, 2]]) * Matrix([[1, 2]])
+
+
+def test_matrix_rejects_ragged_rows():
+    with pytest.raises(ValueError):
+        Matrix([[1, 2], [3]])
+
+
+def test_matrix_is_protected_from_outside_changes():
+    rows = [[1, 2], [3, 4]]
+    m = Matrix(rows)
+    rows[0][0] = 99
+    m.rows[0][0] = 99
+    assert m == Matrix([[1, 2], [3, 4]])

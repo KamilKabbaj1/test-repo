@@ -208,3 +208,59 @@ class Point2D:
 
     def __repr__(self) -> str:
         return f"Point2D({self.x}, {self.y})"
+
+
+# --------------------------------------------------------------------------
+# Problem 7 - Matrix multiplication with *
+# --------------------------------------------------------------------------
+class Matrix:
+    """A matrix stored as a list of rows (list of lists)."""
+
+    def __init__(self, rows: list[list[float]]) -> None:
+        # Validate once at creation, so every method can trust the shape.
+        if not rows or not rows[0]:
+            raise ValueError("a matrix needs at least one row and one column")
+        if any(len(row) != len(rows[0]) for row in rows):
+            raise ValueError("all rows must have the same length")
+        # Copy each row: if the caller later modifies its own list,
+        # our matrix must not change behind our back (encapsulation).
+        self._rows = [list(row) for row in rows]
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        """(number of rows, number of columns)."""
+        return len(self._rows), len(self._rows[0])
+
+    @property
+    def rows(self) -> list[list[float]]:
+        # Return a copy for the same reason as in __init__.
+        return [list(row) for row in self._rows]
+
+    def __mul__(self, other: "Matrix") -> "Matrix":
+        # (n x m) * (m x p) -> (n x p) ; C[i][j] = sum_k A[i][k] * B[k][j]
+        if not isinstance(other, Matrix):
+            return NotImplemented
+        n, m = self.shape
+        m2, p = other.shape
+        if m != m2:
+            # Wrong types -> NotImplemented, but right types with wrong
+            # dimensions is a value problem -> ValueError.
+            raise ValueError(f"cannot multiply {n}x{m} by {m2}x{p} matrices")
+        return Matrix(
+            [
+                [sum(self._rows[i][k] * other._rows[k][j] for k in range(m)) for j in range(p)]
+                for i in range(n)
+            ]
+        )
+
+    # Python has a dedicated operator for matrix products: `@` (used by NumPy).
+    # The statement asks for `*`, so `@` is just an alias of the same method.
+    __matmul__ = __mul__
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Matrix):
+            return NotImplemented
+        return self._rows == other._rows
+
+    def __repr__(self) -> str:
+        return f"Matrix({self._rows})"
