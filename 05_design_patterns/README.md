@@ -78,3 +78,66 @@ Design choices:
   `ValueError`, so the error cannot be silently ignored.
 - Each factory instance copies the default registry, so registering a method on one factory (in a test,
   for example) does not leak into the others.
+
+---
+
+## Creational — Builder: HR employee onboarding
+
+**Problem**: `create_employee` takes 17 parameters, the "telescoping constructor" smell. A single missing
+`None` shifts every following argument, a call like `False, True, True, True` is unreadable, and nothing
+guarantees business rules such as "a senior developer always gets admin rights".
+
+```mermaid
+classDiagram
+    class Employee {
+        <<dataclass>>
+        +first_name: str
+        +last_name: str
+        +email: str
+        +department: str
+        +position: str
+        +salary: float
+        +start_date: str
+        +manager_id: Optional~int~
+        +has_laptop: bool
+        +has_parking: bool
+        +has_vpn_access: bool
+        +has_admin_rights: bool
+        +office_location: Optional~str~
+        +contract_type: str
+    }
+    class EmployeeBuilder {
+        -fields: dict
+        +with_name(first_name, last_name) EmployeeBuilder
+        +with_email(email) EmployeeBuilder
+        +with_job(department, position, salary) EmployeeBuilder
+        +with_start_date(start_date) EmployeeBuilder
+        +with_manager(manager_id) EmployeeBuilder
+        +with_contact(phone, address, emergency_contact) EmployeeBuilder
+        +with_equipment(laptop, parking) EmployeeBuilder
+        +with_access(vpn, admin) EmployeeBuilder
+        +with_office(office_location) EmployeeBuilder
+        +with_contract(contract_type) EmployeeBuilder
+        +build() Employee
+    }
+    class DeveloperBuilder {
+        +DeveloperBuilder(first_name, last_name, email, position, salary)
+    }
+    class InternBuilder {
+        +InternBuilder(first_name, last_name, email, department, salary)
+    }
+
+    EmployeeBuilder <|-- DeveloperBuilder
+    EmployeeBuilder <|-- InternBuilder
+    EmployeeBuilder ..> Employee : builds
+```
+
+Design choices:
+- **Product** = a `@dataclass(frozen=True)`: a plain data container, immutable once built, so
+  nobody can bypass the validation by modifying it afterwards.
+- **Fluent builder**: each `with_...` method returns `self`, which allows chaining. Related values are
+  grouped (name, job, equipment, access), and booleans are passed **by keyword** (`laptop=True`).
+- **Validation in `build()` only**: one place, run once, just before the product exists.
+- **Presets** `DeveloperBuilder` and `InternBuilder` are pre-filled builders, with the values of the two
+  examples of the statement. The business rules live there (senior → admin rights, intern →
+  internship contract without VPN). The result is still a builder, so it can be adjusted before `build()`.
