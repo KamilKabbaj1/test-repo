@@ -1,0 +1,11 @@
+# Course material (slides, saved web pages): not ours to redistribute
+docs/
+*.pdf
+
+# Virtual environment: rebuilt locally with `python3 -m venv .venv`
+.venv/
+
+# Python / pytest caches: generated files, never versioned
+__pycache__/
+*.pyc
+.pytest_cache/
